@@ -509,20 +509,9 @@ export async function start_sandbox(
   const containerName = `${imageName}-${index}`;
   args.push('--name', containerName, '--hostname', containerName);
 
-      // copy GEMINI_API_KEY(s)
-    if (process.env.GEMINI_API_KEY) {
-      args.push('--env', `GEMINI_API_KEY=${process.env.GEMINI_API_KEY}`);
-    }
-  if (process.env.GOOGLE_API_KEY) {
-    args.push('--env', `GOOGLE_API_KEY=${process.env.GOOGLE_API_KEY}`);
-  }
-
-  // copy GOOGLE_GENAI_USE_VERTEXAI
-  if (process.env.GOOGLE_GENAI_USE_VERTEXAI) {
-    args.push(
-      '--env',
-      `GOOGLE_GENAI_USE_VERTEXAI=${process.env.GOOGLE_GENAI_USE_VERTEXAI}`,
-    );
+  // copy GEMINI_API_KEY(s)
+  if (process.env.GEMINI_API_KEY) {
+    args.push('--env', `GEMINI_API_KEY=${process.env.GEMINI_API_KEY}`);
   }
 
   // copy GOOGLE_CLOUD_PROJECT
@@ -530,14 +519,6 @@ export async function start_sandbox(
     args.push(
       '--env',
       `GOOGLE_CLOUD_PROJECT=${process.env.GOOGLE_CLOUD_PROJECT}`,
-    );
-  }
-
-  // copy GOOGLE_CLOUD_LOCATION
-  if (process.env.GOOGLE_CLOUD_LOCATION) {
-    args.push(
-      '--env',
-      `GOOGLE_CLOUD_LOCATION=${process.env.GOOGLE_CLOUD_LOCATION}`,
     );
   }
 

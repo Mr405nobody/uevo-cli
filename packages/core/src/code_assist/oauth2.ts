@@ -7,7 +7,6 @@
 import {
   OAuth2Client,
   Credentials,
-  Compute,
   CodeChallengeMethod,
 } from 'google-auth-library';
 import * as http from 'http';
@@ -95,30 +94,6 @@ export async function getOauthClient(
     }
     console.log('Loaded cached credentials.');
     return client;
-  }
-
-  // In Google Cloud Shell, we can use Application Default Credentials (ADC)
-  // provided via its metadata server to authenticate non-interactively using
-  // the identity of the user logged into Cloud Shell.
-  if (authType === AuthType.CLOUD_SHELL) {
-    try {
-      console.log("Attempting to authenticate via Cloud Shell VM's ADC.");
-      const computeClient = new Compute({
-        // We can leave this empty, since the metadata server will provide
-        // the service account email.
-      });
-      await computeClient.getAccessToken();
-      console.log('Authentication successful.');
-
-      // Do not cache creds in this case; note that Compute client will handle its own refresh
-      return computeClient;
-    } catch (e) {
-      throw new Error(
-        `Could not authenticate using Cloud Shell credentials. Please select a different authentication method or ensure you are in a properly configured environment. Error: ${getErrorMessage(
-          e,
-        )}`,
-      );
-    }
   }
 
   if (config.isBrowserLaunchSuppressed()) {

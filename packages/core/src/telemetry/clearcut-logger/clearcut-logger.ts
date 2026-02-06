@@ -249,27 +249,12 @@ export class ClearcutLogger {
       },
       {
         UEVO_CLI_key:
-          EventMetadataKey.UEVO_CLI_START_SESSION_VERTEX_API_ENABLED,
-        value: event.vertex_ai_enabled.toString(),
-      },
-      {
-        UEVO_CLI_key:
           EventMetadataKey.UEVO_CLI_START_SESSION_DEBUG_MODE_ENABLED,
         value: event.debug_enabled.toString(),
       },
       {
-        UEVO_CLI_key:
-          EventMetadataKey.UEVO_CLI_START_SESSION_VERTEX_API_ENABLED,
-        value: event.vertex_ai_enabled.toString(),
-      },
-      {
         UEVO_CLI_key: EventMetadataKey.UEVO_CLI_START_SESSION_MCP_SERVERS,
         value: event.mcp_servers,
-      },
-      {
-        UEVO_CLI_key:
-          EventMetadataKey.UEVO_CLI_START_SESSION_VERTEX_API_ENABLED,
-        value: event.vertex_ai_enabled.toString(),
       },
       {
         UEVO_CLI_key:

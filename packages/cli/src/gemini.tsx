@@ -128,17 +128,6 @@ export async function main() {
     process.exit(0);
   }
 
-  // Set a default auth type if one isn't set.
-  if (!settings.merged.selectedAuthType) {
-    if (process.env.CLOUD_SHELL === 'true') {
-      settings.setValue(
-        SettingScope.User,
-        'selectedAuthType',
-        AuthType.CLOUD_SHELL,
-      );
-    }
-  }
-
   setMaxSizedBoxDebugging(config.getDebugMode());
 
   await config.initialize();

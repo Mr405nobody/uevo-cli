@@ -1,54 +1,71 @@
-# Gemini CLI Architecture Overview
+# uEVO CLI Architecture (code-driven)
 
-This document provides a high-level overview of the Gemini CLI's architecture.
+This page summarizes the architecture based on the actual code paths in the repo.
 
-## Core components
+## Packages and primary roles
 
-The Gemini CLI is primarily composed of two main packages, along with a suite of tools that can be used by the system in the course of handling command-line input:
+- `packages/cli`: interactive and non-interactive user experience, command parsing,
+  UI rendering, and tool approval UX.
+- `packages/core`: model orchestration, prompt construction, tool registry,
+  tool execution, and session state.
+- `packages/core/src/tools`: built-in tools (read/write/edit/shell/web/memory, etc.).
+- `packages/vscode-ide-companion`: IDE context integration and companion tooling.
 
-1.  **CLI package (`packages/cli`):**
-    - **Purpose:** This contains the user-facing portion of the Gemini CLI, such as handling the initial user input, presenting the final output, and managing the overall user experience.
-    - **Key functions contained in the package:**
-      - [Input processing](./cli/commands.md)
-      - History management
-      - Display rendering
-      - [Theme and UI customization](./cli/themes.md)
-      - [CLI configuration settings](./cli/configuration.md)
+## End-to-end execution flow
 
-2.  **Core package (`packages/core`):**
-    - **Purpose:** This acts as the backend for the Gemini CLI. It receives requests sent from `packages/cli`, orchestrates interactions with the Gemini API, and manages the execution of available tools.
-    - **Key functions contained in the package:**
-      - API client for communicating with the Google Gemini API
-      - Prompt construction and management
-      - Tool registration and execution logic
-      - State management for conversations or sessions
-      - Server-side configuration
+1) **Process start**
+   - Entry: `packages/cli/index.ts`.
+   - Delegates to `packages/cli/src/gemini.tsx` `main()`.
 
-3.  **Tools (`packages/core/src/tools/`):**
-    - **Purpose:** These are individual modules that extend the capabilities of the Gemini model, allowing it to interact with the local environment (e.g., file system, shell commands, web fetching).
-    - **Interaction:** `packages/core` invokes these tools based on requests from the Gemini model.
+2) **CLI bootstrap**
+   - Parse args and settings, load extensions, initialize config.
+   - Decide interactive vs non-interactive.
+   - Handle sandbox/memory/auth/theme.
+   - Code: `packages/cli/src/gemini.tsx`.
 
-## Interaction Flow
+3) **Interactive flow (Ink UI)**
+   - UI root: `packages/cli/src/ui/App.tsx`.
+   - Stream orchestration: `packages/cli/src/ui/hooks/useGeminiStream.ts`.
+   - Tool lifecycle in UI: `packages/cli/src/ui/hooks/useReactToolScheduler.ts`.
 
-A typical interaction with the Gemini CLI follows this flow:
+4) **Non-interactive flow**
+   - Entry: `packages/cli/src/nonInteractiveCli.ts`.
+   - Loop: send prompt -> collect tool calls -> execute tools -> feed results back
+     until completion.
 
-1.  **User input:** The user types a prompt or command into the terminal, which is managed by `packages/cli`.
-2.  **Request to core:** `packages/cli` sends the user's input to `packages/core`.
-3.  **Request processed:** The core package:
-    - Constructs an appropriate prompt for the Gemini API, possibly including conversation history and available tool definitions.
-    - Sends the prompt to the Gemini API.
-4.  **Gemini API response:** The Gemini API processes the prompt and returns a response. This response might be a direct answer or a request to use one of the available tools.
-5.  **Tool execution (if applicable):**
-    - When the Gemini API requests a tool, the core package prepares to execute it.
-    - If the requested tool can modify the file system or execute shell commands, the user is first given details of the tool and its arguments, and the user must approve the execution.
-    - Read-only operations, such as reading files, might not require explicit user confirmation to proceed.
-    - Once confirmed, or if confirmation is not required, the core package executes the relevant action within the relevant tool, and the result is sent back to the Gemini API by the core package.
-    - The Gemini API processes the tool result and generates a final response.
-6.  **Response to CLI:** The core package sends the final response back to the CLI package.
-7.  **Display to user:** The CLI package formats and displays the response to the user in the terminal.
+5) **Core model orchestration**
+   - Client: `packages/core/src/core/client.ts` (`GeminiClient`).
+   - Chat/session: `packages/core/src/core/uevoChat.ts`.
+   - Turn processing/stream events: `packages/core/src/core/turn.ts`.
+   - Prompt building: `packages/core/src/core/prompts.ts`,
+     `packages/core/src/core/promptTemplates.ts`.
 
-## Key Design Principles
+6) **Tool discovery and execution**
+   - Registry: `packages/core/src/tools/tool-registry.ts`.
+   - Built-in tools: `packages/core/src/tools/*.ts`.
+   - Scheduler: `packages/core/src/core/coreToolScheduler.ts`.
+   - Execution flow:
+     - Model returns function call(s).
+     - Scheduler validates params, requests approval if needed.
+     - Tool executes and returns `ToolResult`.
+     - Result is wrapped as function response and fed back to the model.
 
-- **Modularity:** Separating the CLI (frontend) from the Core (backend) allows for independent development and potential future extensions (e.g., different frontends for the same backend).
-- **Extensibility:** The tool system is designed to be extensible, allowing new capabilities to be added.
-- **User experience:** The CLI focuses on providing a rich and interactive terminal experience.
+## Primary runtime objects
+
+- `Config` (`packages/core/src/config/config.ts`): central wiring for tool
+  registry, model settings, approval mode, MCP servers, sandbox, and services.
+- `GeminiClient`: manages chat history, compression, streaming, and retries.
+- `CoreToolScheduler`: coordinates tool calls, approval, and result submission.
+- `ToolRegistry`: registers built-ins and discovered tools (command/MCP).
+
+## Key integration points
+
+- **Tool discovery**: configured via settings and wired in `Config`.
+- **Approval modes**: `ApprovalMode` in `Config`, enforced in
+  `CoreToolScheduler`.
+- **IDE context**: `packages/core/src/services/ideContext.ts` feeds open file
+  context into requests when enabled.
+- **Sandbox**: CLI decides whether to enter sandbox before UI starts.
+
+This summary is intended to mirror the actual call graph so you can navigate by
+code rather than documentation abstractions.

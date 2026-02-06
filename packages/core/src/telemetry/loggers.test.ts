@@ -78,7 +78,7 @@ describe('loggers', () => {
         getContentGeneratorConfig: () => ({
           model: 'test-model',
           apiKey: 'test-api-key',
-          authType: AuthType.USE_VERTEX_AI,
+          authType: AuthType.USE_GEMINI,
         }),
         getTelemetryEnabled: () => true,
         getUsageStatisticsEnabled: () => true,
@@ -111,7 +111,6 @@ describe('loggers', () => {
           core_tools_enabled: 'ls,read-file',
           approval_mode: 'default',
           api_key_enabled: true,
-          vertex_ai_enabled: true,
           log_user_prompts_enabled: true,
           file_filtering_respect_git_ignore: true,
           debug_mode: true,
@@ -133,7 +132,7 @@ describe('loggers', () => {
       const event = new UserPromptEvent(
         11,
         'prompt-id-8',
-        AuthType.USE_VERTEX_AI,
+        AuthType.USE_GEMINI,
         'test-prompt',
       );
 
@@ -162,7 +161,7 @@ describe('loggers', () => {
       const event = new UserPromptEvent(
         11,
         'test-prompt',
-        AuthType.CLOUD_SHELL,
+        AuthType.LOGIN_WITH_GOOGLE,
       );
 
       logUserPrompt(mockConfig, event);
@@ -360,7 +359,7 @@ describe('loggers', () => {
     } as unknown as Config;
 
     it('should log flash fallback event', () => {
-      const event = new FlashFallbackEvent(AuthType.USE_VERTEX_AI);
+      const event = new FlashFallbackEvent(AuthType.USE_GEMINI);
 
       logFlashFallback(mockConfig, event);
 

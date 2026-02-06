@@ -1,28 +1,34 @@
-# Gemini CLI
+# uEVO CLI (packages/cli)
 
-Within Gemini CLI, `packages/cli` is the frontend for users to send and receive prompts with the Gemini AI model and its associated tools. For a general overview of Gemini CLI, see the [main documentation page](../index.md).
+`packages/cli` is the user-facing layer. It handles process startup, settings,
+CLI arguments, sandbox entry, and the interactive Ink UI. It also drives the
+non-interactive execution path for scripting.
 
-## Navigating this section
+## Key runtime entry points
 
-- **[Authentication](./authentication.md):** A guide to setting up authentication with Google's AI services.
-- **[Commands](./commands.md):** A reference for Gemini CLI commands (e.g., `/help`, `/tools`, `/theme`).
-- **[Configuration](./configuration.md):** A guide to tailoring Gemini CLI behavior using configuration files.
-- **[Token Caching](./token-caching.md):** Optimize API costs through token caching.
-- **[Themes](./themes.md)**: A guide to customizing the CLI's appearance with different themes.
-- **[Tutorials](tutorials.md)**: A tutorial showing how to use Gemini CLI to automate a development task.
+- Process entry: `packages/cli/index.ts`
+- Bootstrap and mode selection: `packages/cli/src/gemini.tsx`
+- Interactive UI root: `packages/cli/src/ui/App.tsx`
+- Streaming + tool lifecycle: `packages/cli/src/ui/hooks/useGeminiStream.ts`
+- Tool scheduling bridge to core: `packages/cli/src/ui/hooks/useReactToolScheduler.ts`
+- Non-interactive flow: `packages/cli/src/nonInteractiveCli.ts`
 
 ## Non-interactive mode
 
-Gemini CLI can be run in a non-interactive mode, which is useful for scripting and automation. In this mode, you pipe input to the CLI, it executes the command, and then it exits.
+When input is piped or `-p/--prompt` is used, the CLI runs a loop that:
+1) Sends the user prompt to the core model client.
+2) Collects tool calls returned by the model.
+3) Executes those tools and feeds results back to the model.
+4) Prints the final response and exits.
 
-The following example pipes a command to Gemini CLI from your terminal:
-
-```bash
-echo "What is fine tuning?" | gemini
-```
-
-Gemini CLI executes the command and prints the output to your terminal. Note that you can achieve the same behavior by using the `--prompt` or `-p` flag. For example:
+Example:
 
 ```bash
-gemini -p "What is fine tuning?"
+echo "Summarize this repo" | uevo
 ```
+
+## Interactive flow (Ink UI)
+
+The interactive UI keeps state, renders streamed tokens, manages approvals, and
+aggregates tool call output. The core logic is in `useGeminiStream`, which
+connects user input to the core model client and the tool scheduler.

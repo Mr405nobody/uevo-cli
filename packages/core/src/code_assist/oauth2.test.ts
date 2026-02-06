@@ -7,7 +7,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach, Mock } from 'vitest';
 import { getOauthClient } from './oauth2.js';
 import { getCachedGoogleAccount } from '../utils/user_account.js';
-import { OAuth2Client, Compute } from 'google-auth-library';
+import { OAuth2Client } from 'google-auth-library';
 import * as fs from 'fs';
 import * as path from 'path';
 import http from 'http';
@@ -56,7 +56,6 @@ describe('oauth2', () => {
   afterEach(() => {
     fs.rmSync(tempHomeDir, { recursive: true, force: true });
     vi.clearAllMocks();
-    delete process.env.CLOUD_SHELL;
   });
 
   it('should perform a web login', async () => {
@@ -248,88 +247,4 @@ describe('oauth2', () => {
     consoleLogSpy.mockRestore();
   });
 
-  describe('in Cloud Shell', () => {
-    const mockGetAccessToken = vi.fn();
-    let mockComputeClient: Compute;
-
-    beforeEach(() => {
-      vi.spyOn(os, 'homedir').mockReturnValue('/user/home');
-      vi.spyOn(fs.promises, 'mkdir').mockResolvedValue(undefined);
-      vi.spyOn(fs.promises, 'writeFile').mockResolvedValue(undefined);
-      vi.spyOn(fs.promises, 'readFile').mockRejectedValue(
-        new Error('File not found'),
-      ); // Default to no cached creds
-
-      mockGetAccessToken.mockResolvedValue({ token: 'test-access-token' });
-      mockComputeClient = {
-        credentials: { refresh_token: 'test-refresh-token' },
-        getAccessToken: mockGetAccessToken,
-      } as unknown as Compute;
-
-      (Compute as unknown as Mock).mockImplementation(() => mockComputeClient);
-    });
-
-    it('should attempt to load cached credentials first', async () => {
-      const cachedCreds = { refresh_token: 'cached-token' };
-      vi.spyOn(fs.promises, 'readFile').mockResolvedValue(
-        JSON.stringify(cachedCreds),
-      );
-
-      const mockClient = {
-        setCredentials: vi.fn(),
-        getAccessToken: vi.fn().mockResolvedValue({ token: 'test-token' }),
-        getTokenInfo: vi.fn().mockResolvedValue({}),
-        on: vi.fn(),
-      };
-
-      // To mock the new OAuth2Client() inside the function
-      (OAuth2Client as unknown as Mock).mockImplementation(
-        () => mockClient as unknown as OAuth2Client,
-      );
-
-      await getOauthClient(AuthType.LOGIN_WITH_GOOGLE, mockConfig);
-
-      expect(fs.promises.readFile).toHaveBeenCalledWith(
-        '/user/home/.gemini/oauth_creds.json',
-        'utf-8',
-      );
-      expect(mockClient.setCredentials).toHaveBeenCalledWith(cachedCreds);
-      expect(mockClient.getAccessToken).toHaveBeenCalled();
-      expect(mockClient.getTokenInfo).toHaveBeenCalled();
-      expect(Compute).not.toHaveBeenCalled(); // Should not fetch new client if cache is valid
-    });
-
-    it('should use Compute to get a client if no cached credentials exist', async () => {
-      await getOauthClient(AuthType.CLOUD_SHELL, mockConfig);
-
-      expect(Compute).toHaveBeenCalledWith({});
-      expect(mockGetAccessToken).toHaveBeenCalled();
-    });
-
-    it('should not cache the credentials after fetching them via ADC', async () => {
-      const newCredentials = { refresh_token: 'new-adc-token' };
-      mockComputeClient.credentials = newCredentials;
-      mockGetAccessToken.mockResolvedValue({ token: 'new-adc-token' });
-
-      await getOauthClient(AuthType.CLOUD_SHELL, mockConfig);
-
-      expect(fs.promises.writeFile).not.toHaveBeenCalled();
-    });
-
-    it('should return the Compute client on successful ADC authentication', async () => {
-      const client = await getOauthClient(AuthType.CLOUD_SHELL, mockConfig);
-      expect(client).toBe(mockComputeClient);
-    });
-
-    it('should throw an error if ADC fails', async () => {
-      const testError = new Error('ADC Failed');
-      mockGetAccessToken.mockRejectedValue(testError);
-
-      await expect(
-        getOauthClient(AuthType.CLOUD_SHELL, mockConfig),
-      ).rejects.toThrow(
-        'Could not authenticate using Cloud Shell credentials. Please select a different authentication method or ensure you are in a properly configured environment. Error: ADC Failed',
-      );
-    });
-  });
 });

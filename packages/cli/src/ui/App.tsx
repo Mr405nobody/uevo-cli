@@ -898,9 +898,6 @@ const App = ({ config, settings, startupWarnings = [], version }: AppProps) => {
                 width="100%"
               >
                 <Box>
-                  {process.env.UEVO_SYSTEM_MD && (
-                    <Text color={Colors.AccentRed}>|⌐■_■| </Text>
-                  )}
                   {ctrlCPressedOnce ? (
                     <Text color={Colors.AccentYellow}>
                       Press Ctrl+C again to exit.

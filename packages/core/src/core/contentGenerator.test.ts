@@ -51,7 +51,6 @@ describe('createContentGenerator', () => {
     );
     expect(GoogleGenAI).toHaveBeenCalledWith({
       apiKey: 'test-api-key',
-      vertexai: undefined,
       httpOptions: {
         headers: {
           'User-Agent': expect.any(String),
@@ -91,7 +90,6 @@ describe('createContentGeneratorConfig', () => {
       AuthType.USE_GEMINI,
     );
     expect(config.apiKey).toBe('env-gemini-key');
-    expect(config.vertexai).toBe(false);
   });
 
   it('should not configure for Gemini if GEMINI_API_KEY is empty', async () => {
@@ -101,55 +99,5 @@ describe('createContentGeneratorConfig', () => {
       AuthType.USE_GEMINI,
     );
     expect(config.apiKey).toBeUndefined();
-    expect(config.vertexai).toBeUndefined();
-  });
-
-  it('should configure for Vertex AI using GOOGLE_API_KEY when set', async () => {
-    process.env.GOOGLE_API_KEY = 'env-google-key';
-    const config = await createContentGeneratorConfig(
-      mockConfig,
-      AuthType.USE_VERTEX_AI,
-    );
-    expect(config.apiKey).toBe('env-google-key');
-    expect(config.vertexai).toBe(true);
-  });
-
-  it('should configure for Vertex AI using GCP project and location when set', async () => {
-    process.env.GOOGLE_CLOUD_PROJECT = 'env-gcp-project';
-    process.env.GOOGLE_CLOUD_LOCATION = 'env-gcp-location';
-    const config = await createContentGeneratorConfig(
-      mockConfig,
-      AuthType.USE_VERTEX_AI,
-    );
-    expect(config.vertexai).toBe(true);
-    expect(config.apiKey).toBeUndefined();
-  });
-
-  it('should not configure for Vertex AI if required env vars are empty', async () => {
-    process.env.GOOGLE_API_KEY = '';
-    process.env.GOOGLE_CLOUD_PROJECT = '';
-    process.env.GOOGLE_CLOUD_LOCATION = '';
-    const config = await createContentGeneratorConfig(
-      mockConfig,
-      AuthType.USE_VERTEX_AI,
-    );
-    expect(config.apiKey).toBeUndefined();
-    expect(config.vertexai).toBeUndefined();
-  });
-
-  it('should create config for Aliyun DashScope API Key auth', async () => {
-    process.env.DASHSCOPE_API_KEY = 'test-dashscope-key';
-    const mockConfig = {
-      getModel: () => 'qwen-turbo',
-      getProxy: () => undefined,
-    } as any;
-
-    const config = await createContentGeneratorConfig(
-      mockConfig,
-      AuthType.USE_ALIYUN,
-    );
-
-    expect(config.apiKey).toBe('test-dashscope-key');
-    expect(config.authType).toBe(AuthType.USE_ALIYUN);
   });
 });

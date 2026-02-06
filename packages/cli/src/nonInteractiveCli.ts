@@ -11,6 +11,7 @@ import {
   ToolRegistry,
   shutdownTelemetry,
   isTelemetrySdkInitialized,
+  buildSkillContext,
 } from '@uevo/uevo-cli-core';
 import {
   Content,
@@ -62,7 +63,13 @@ export async function runNonInteractive(
 
   const chat = await geminiClient.getChat();
   const abortController = new AbortController();
-  let currentMessages: Content[] = [{ role: 'user', parts: [{ text: input }] }];
+  const skillContext = buildSkillContext({ query: input });
+  const initialMessageText = skillContext
+    ? `${skillContext.trimEnd()}\n\n${input}`
+    : input;
+  let currentMessages: Content[] = [
+    { role: 'user', parts: [{ text: initialMessageText }] },
+  ];
   let turnCount = 0;
   try {
     while (true) {

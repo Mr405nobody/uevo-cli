@@ -13,6 +13,7 @@ export * from './core/contentGenerator.js';
 export * from './core/uevoChat.js';
 export * from './core/logger.js';
 export * from './core/prompts.js';
+export * from './core/promptSkills.js';
 export * from './core/promptTemplates.js';
 export * from './core/tokenLimits.js';
 export * from './core/turn.js';
@@ -20,7 +21,6 @@ export * from './core/geminiRequest.js';
 export * from './core/coreToolScheduler.js';
 export * from './core/nonInteractiveToolExecutor.js';
 export * from './core/aiProvider.js';
-export * from './core/anthropicClient.js';
 export * from './core/modelProviderMapping.js';
 
 export * from './code_assist/codeAssist.js';

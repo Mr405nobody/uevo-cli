@@ -19,11 +19,9 @@ uEVO CLI 是基于 Google Gemini CLI 深度定制开发的下一代AI编程助�
 - **📚 工具知识积累**：持续优化和改进已有工具
 - **🎯 需求驱动进化**：根据实际使用场景自动进化功能
 
-### 🌐 **多Provider AI支持** - 打破单一模型限制
-- **🤖 六大AI提供商**：Gemini、DeepSeek、Claude、GPT、OpenRouter、阿里云Qwen
-- **🔀 智能路由**：根据任务类型自动选择最适合的AI模型
-- **🔧 一键配置**：通过 `/api config` 交互式配置所有API
-- **⚡ 无缝切换**：使用 `/api switch` 快速切换AI提供商
+### ✅ **Gemini 原生支持**
+- **🤖 官方 Gemini 模型**：稳定可靠的代码能力
+- **🔐 双认证方式**：Google 登录或 `GEMINI_API_KEY`
 
 
 ### 🎨 **个性化规则引擎** - 让AI按你的方式工作
@@ -66,20 +64,15 @@ uevo
 
 ### ⚙️ 环境配置
 
-1. **设置API密钥**（选择一个或多个）：
+1. **设置 Gemini API 密钥**：
    ```bash
-   export GEMINI_API_KEY="your-gemini-api-key"          # Google Gemini
-   export DEEPSEEK_API_KEY="your-deepseek-api-key"    # DeepSeek
-   export ANTHROPIC_API_KEY="your-claude-api-key"     # Anthropic Claude
-   export OPENAI_API_KEY="your-openai-api-key"        # OpenAI GPT
-   export DASHSCOPE_API_KEY="your-qwen-api-key"       # 阿里云Qwen
-   export OPENROUTER_API_KEY="your-openrouter-key"    # OpenRouter
+   export GEMINI_API_KEY="your-gemini-api-key"
    ```
 
-2. **或使用交互式配置**：
+2. **或使用 Google 登录**：
    ```bash
    uevo
-   /api config  # 选择提供商并配置API密钥
+   /auth  # 选择登录方式
    ```
 
 ---
@@ -101,23 +94,13 @@ uEVO的最大创新是**让AI学会编写工具**。当遇到现有工具无法�
 # AI会分析需求，编写ReactRefactorTool，并立即投入使用
 ```
 
-### 🌐 多Provider智能路由
+### 🤖 Gemini 模型选择
 
-支持6大主流AI提供商，根据任务特点自动选择最佳模型：
-
-| 提供商 | 适用场景 | 特色模型 |
-|--------|----------|----------|
-| **Gemini** | 通用编程、代码理解 | gemini-2.0-flash-exp |
-| **DeepSeek** | 代码生成、算法优化 | deepseek-chat, deepseek-reasoner |
-| **Claude** | 文档写作、架构设计 | claude-3.5-sonnet |
-| **GPT** | 创意编程、问题解决 | gpt-4o, gpt-4o-mini |
-| **Qwen** | 中文编程、本土化开发 | qwen-max, qwen-coder-plus |
-| **OpenRouter** | 模型聚合、成本优化 | 200+ 模型选择 |
+你可以使用 `/model` 命令查看和切换 Gemini 模型：
 
 ```bash
-/api list              # 查看所有可用提供商
-/api switch deepseek   # 切换到DeepSeek
-/api test qwen-max     # 测试阿里云Qwen连接
+/model list
+/model set gemini-2.5-pro
 ```
 
 

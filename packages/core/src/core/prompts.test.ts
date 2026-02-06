@@ -6,7 +6,6 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getCoreSystemPrompt } from './prompts.js';
-import { isGitRepository } from '../utils/gitUtils.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -27,9 +26,6 @@ vi.mock('../tools/shell', () => ({
 vi.mock('../tools/write-file', () => ({
   WriteFileTool: { Name: 'write_file' },
 }));
-vi.mock('../utils/gitUtils', () => ({
-  isGitRepository: vi.fn(),
-}));
 vi.mock('node:fs');
 
 describe('Core System Prompt (prompts.ts)', () => {
@@ -43,7 +39,7 @@ describe('Core System Prompt (prompts.ts)', () => {
     vi.stubEnv('SANDBOX', undefined);
     const prompt = getCoreSystemPrompt();
     expect(prompt).not.toContain('---\n\n'); // Separator should not be present
-    expect(prompt).toContain('You are an interactive CLI agent'); // Check for core content
+    expect(prompt).toContain('# Core Mandates'); // Check for core content
     expect(prompt).toMatchSnapshot(); // Use snapshot for base prompt structure
   });
 
@@ -51,7 +47,7 @@ describe('Core System Prompt (prompts.ts)', () => {
     vi.stubEnv('SANDBOX', undefined);
     const prompt = getCoreSystemPrompt('');
     expect(prompt).not.toContain('---\n\n');
-    expect(prompt).toContain('You are an interactive CLI agent');
+    expect(prompt).toContain('# Core Mandates');
     expect(prompt).toMatchSnapshot();
   });
 
@@ -59,7 +55,7 @@ describe('Core System Prompt (prompts.ts)', () => {
     vi.stubEnv('SANDBOX', undefined);
     const prompt = getCoreSystemPrompt('   \n  \t ');
     expect(prompt).not.toContain('---\n\n');
-    expect(prompt).toContain('You are an interactive CLI agent');
+    expect(prompt).toContain('# Core Mandates');
     expect(prompt).toMatchSnapshot();
   });
 
@@ -70,130 +66,8 @@ describe('Core System Prompt (prompts.ts)', () => {
     const prompt = getCoreSystemPrompt(memory);
 
     expect(prompt.endsWith(expectedSuffix)).toBe(true);
-    expect(prompt).toContain('You are an interactive CLI agent'); // Ensure base prompt follows
+    expect(prompt).toContain('# Core Mandates'); // Ensure base prompt follows
     expect(prompt).toMatchSnapshot(); // Snapshot the combined prompt
-  });
-
-  it('should include sandbox-specific instructions when SANDBOX env var is set', () => {
-    vi.stubEnv('SANDBOX', 'true'); // Generic sandbox value
-    const prompt = getCoreSystemPrompt();
-    expect(prompt).toContain('# Sandbox');
-    expect(prompt).not.toContain('# macOS Seatbelt');
-    expect(prompt).not.toContain('# Outside of Sandbox');
-    expect(prompt).toMatchSnapshot();
-  });
-
-  it('should include seatbelt-specific instructions when SANDBOX env var is "sandbox-exec"', () => {
-    vi.stubEnv('SANDBOX', 'sandbox-exec');
-    const prompt = getCoreSystemPrompt();
-    expect(prompt).toContain('# macOS Seatbelt');
-    expect(prompt).not.toContain('# Sandbox');
-    expect(prompt).not.toContain('# Outside of Sandbox');
-    expect(prompt).toMatchSnapshot();
-  });
-
-  it('should include non-sandbox instructions when SANDBOX env var is not set', () => {
-    vi.stubEnv('SANDBOX', undefined); // Ensure it's not set
-    const prompt = getCoreSystemPrompt();
-    expect(prompt).toContain('# Outside of Sandbox');
-    expect(prompt).not.toContain('# Sandbox');
-    expect(prompt).not.toContain('# macOS Seatbelt');
-    expect(prompt).toMatchSnapshot();
-  });
-
-  it('should include git instructions when in a git repo', () => {
-    vi.stubEnv('SANDBOX', undefined);
-    vi.mocked(isGitRepository).mockReturnValue(true);
-    const prompt = getCoreSystemPrompt();
-    expect(prompt).toContain('# Git Repository');
-    expect(prompt).toMatchSnapshot();
-  });
-
-  it('should not include git instructions when not in a git repo', () => {
-    vi.stubEnv('SANDBOX', undefined);
-    vi.mocked(isGitRepository).mockReturnValue(false);
-    const prompt = getCoreSystemPrompt();
-    expect(prompt).not.toContain('# Git Repository');
-    expect(prompt).toMatchSnapshot();
-  });
-
-  describe('UEVO_SYSTEM_MD environment variable', () => {
-    it('should use default prompt when UEVO_SYSTEM_MD is "false"', () => {
-      vi.stubEnv('UEVO_SYSTEM_MD', 'false');
-      const prompt = getCoreSystemPrompt();
-      expect(fs.readFileSync).not.toHaveBeenCalled();
-      expect(prompt).not.toContain('custom system prompt');
-    });
-
-    it('should use default prompt when UEVO_SYSTEM_MD is "0"', () => {
-      vi.stubEnv('UEVO_SYSTEM_MD', '0');
-      const prompt = getCoreSystemPrompt();
-      expect(fs.readFileSync).not.toHaveBeenCalled();
-      expect(prompt).not.toContain('custom system prompt');
-    });
-
-    it('should throw error if UEVO_SYSTEM_MD points to a non-existent file', () => {
-      const customPath = '/non/existent/path/system.md';
-      vi.stubEnv('UEVO_SYSTEM_MD', customPath);
-      vi.mocked(fs.existsSync).mockReturnValue(false);
-      expect(() => getCoreSystemPrompt()).toThrow(
-        `missing system prompt file '${path.resolve(customPath)}'`,
-      );
-    });
-
-    it('should read from default path when UEVO_SYSTEM_MD is "true"', () => {
-      const defaultPath = path.resolve(
-        path.join(GEMINI_CONFIG_DIR, 'system.md'),
-      );
-      vi.stubEnv('UEVO_SYSTEM_MD', 'true');
-      vi.mocked(fs.existsSync).mockReturnValue(true);
-      vi.mocked(fs.readFileSync).mockReturnValue('custom system prompt');
-
-      const prompt = getCoreSystemPrompt();
-      expect(fs.readFileSync).toHaveBeenCalledWith(defaultPath, 'utf8');
-      expect(prompt).toBe('custom system prompt');
-    });
-
-    it('should read from default path when UEVO_SYSTEM_MD is "1"', () => {
-      const defaultPath = path.resolve(
-        path.join(GEMINI_CONFIG_DIR, 'system.md'),
-      );
-      vi.stubEnv('UEVO_SYSTEM_MD', '1');
-      vi.mocked(fs.existsSync).mockReturnValue(true);
-      vi.mocked(fs.readFileSync).mockReturnValue('custom system prompt');
-
-      const prompt = getCoreSystemPrompt();
-      expect(fs.readFileSync).toHaveBeenCalledWith(defaultPath, 'utf8');
-      expect(prompt).toBe('custom system prompt');
-    });
-
-    it('should read from custom path when UEVO_SYSTEM_MD provides one, preserving case', () => {
-      const customPath = path.resolve('/custom/path/SyStEm.Md');
-      vi.stubEnv('UEVO_SYSTEM_MD', customPath);
-      vi.mocked(fs.existsSync).mockReturnValue(true);
-      vi.mocked(fs.readFileSync).mockReturnValue('custom system prompt');
-
-      const prompt = getCoreSystemPrompt();
-      expect(fs.readFileSync).toHaveBeenCalledWith(customPath, 'utf8');
-      expect(prompt).toBe('custom system prompt');
-    });
-
-    it('should expand tilde in custom path when UEVO_SYSTEM_MD is set', () => {
-      const homeDir = '/Users/test';
-      vi.spyOn(os, 'homedir').mockReturnValue(homeDir);
-      const customPath = '~/custom/system.md';
-      const expectedPath = path.join(homeDir, 'custom/system.md');
-      vi.stubEnv('UEVO_SYSTEM_MD', customPath);
-      vi.mocked(fs.existsSync).mockReturnValue(true);
-      vi.mocked(fs.readFileSync).mockReturnValue('custom system prompt');
-
-      const prompt = getCoreSystemPrompt();
-      expect(fs.readFileSync).toHaveBeenCalledWith(
-        path.resolve(expectedPath),
-        'utf8',
-      );
-      expect(prompt).toBe('custom system prompt');
-    });
   });
 
   describe('UEVO_WRITE_SYSTEM_MD environment variable', () => {

@@ -16,7 +16,6 @@ import {
   Part,
   GenerateContentResponseUsageMetadata,
   Tool,
-  FinishReason,
 } from '@google/genai';
 import { retryWithBackoff } from '../utils/retry.js';
 import { isFunctionResponse } from '../utils/messageInspectors.js';
@@ -37,7 +36,6 @@ import {
   ApiResponseEvent,
 } from '../telemetry/types.js';
 import { DEFAULT_UEVO_FLASH_MODEL } from '../config/models.js';
-import { getProviderForModel, AIProvider } from './modelProviderMapping.js';
 
 /**
  * Returns true if the response is valid, false otherwise.
@@ -296,16 +294,6 @@ export class GeminiChat {
           );
         }
 
-        // 检查是否需要使用阿里云 API
-        if (this.shouldUseAliyunAPI(modelToUse)) {
-          const messages = this.convertToAliyunMessages(requestContents);
-          return this.callAliyunAPI(
-            modelToUse,
-            messages,
-            { ...this.generationConfig, ...params.config }
-          );
-        }
-
         return this.contentGenerator.generateContent({
           model: modelToUse,
           contents: requestContents,
@@ -411,16 +399,6 @@ export class GeminiChat {
           throw new Error(
             'Please submit a new query to continue with the Flash model.',
           );
-        }
-
-        // 检查是否需要使用阿里云 API
-        if (this.shouldUseAliyunAPI(modelToUse)) {
-          const messages = this.convertToAliyunMessages(requestContents);
-          return Promise.resolve(this.callAliyunStreamAPI(
-            modelToUse,
-            messages,
-            { ...this.generationConfig, ...params.config }
-          ));
         }
 
         return this.contentGenerator.generateContentStream({
@@ -699,258 +677,4 @@ export class GeminiChat {
     );
   }
 
-  /**
-   * 检查模型是否需要使用阿里云 API
-   */
-  private shouldUseAliyunAPI(model: string): boolean {
-    const provider = getProviderForModel(model);
-    return provider === AIProvider.ALIYUN;
-  }
-
-  /**
-   * 获取阿里云 API 密钥
-   */
-  private getAliyunApiKey(): string {
-    const apiKey = process.env.DASHSCOPE_API_KEY;
-    if (!apiKey) {
-      throw new Error('DASHSCOPE_API_KEY environment variable is required for Aliyun models');
-    }
-    return apiKey;
-  }
-
-  /**
-   * 转换 Content 格式到阿里云消息格式
-   */
-  private convertToAliyunMessages(contents: Content[]): Array<{ role: 'system' | 'user' | 'assistant'; content: string }> {
-    const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [];
-    
-    for (const content of contents) {
-      if (content.role === 'user' || content.role === 'model') {
-        const role = content.role === 'model' ? 'assistant' : content.role;
-        const textParts = content.parts?.filter(part => 'text' in part && part.text) || [];
-        const text = textParts.map(part => (part as any).text).join(' ');
-        
-        if (text.trim()) {
-          messages.push({
-            role: role as 'user' | 'assistant',
-            content: text.trim(),
-          });
-        }
-      }
-    }
-    
-    return messages;
-  }
-
-  /**
-   * 调用阿里云非流式 API
-   */
-  private async callAliyunAPI(
-    model: string,
-    messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
-    config: GenerateContentConfig
-  ): Promise<GenerateContentResponse> {
-    const apiKey = this.getAliyunApiKey();
-    const baseUrl = 'https://dashscope.aliyuncs.com/api/v1';
-    
-    const requestBody = {
-      model,
-      input: {
-        messages,
-      },
-      parameters: {
-        result_format: 'message',
-        temperature: config.temperature || 1.0,
-        max_tokens: config.maxOutputTokens || 2048,  // 修复：设置默认值
-      },
-    };
-
-    const response = await fetch(`${baseUrl}/services/aigc/text-generation/generation`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'User-Agent': 'uEVO-CLI/1.0',
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Aliyun DashScope API error: ${errorText}`);
-    }
-
-    const data = await response.json();
-
-    let content = '';
-    if (data.output.choices && data.output.choices.length > 0) {
-      content = data.output.choices[0].message.content;
-    } else if (data.output.text) {
-      content = data.output.text;
-    }
-
-    // 转换为 Gemini 格式的响应
-    return {
-      candidates: [{
-        content: {
-          parts: [{ text: content }],
-          role: 'model'
-        },
-        index: 0,
-        finishReason: FinishReason.STOP,
-        safetyRatings: []
-      }],
-      promptFeedback: {
-        safetyRatings: []
-      },
-      usageMetadata: {
-        promptTokenCount: data.usage.input_tokens,
-        candidatesTokenCount: data.usage.output_tokens,
-        totalTokenCount: data.usage.total_tokens,
-      },
-      modelVersion: model,
-      text: undefined,
-      data: undefined,
-      functionCalls: undefined,
-      executableCode: undefined,
-      codeExecutionResult: undefined,
-    };
-  }
-
-  /**
-   * 调用阿里云流式 API
-   */
-  private async *callAliyunStreamAPI(
-    model: string,
-    messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
-    config: GenerateContentConfig
-  ): AsyncGenerator<GenerateContentResponse> {
-    const apiKey = this.getAliyunApiKey();
-    const baseUrl = 'https://dashscope.aliyuncs.com/api/v1';
-    
-    const requestBody = {
-      model,
-      input: {
-        messages,
-      },
-      parameters: {
-        result_format: 'message',
-        temperature: config.temperature || 1.0,
-        max_tokens: config.maxOutputTokens || 2048,  // 修复：设置默认值
-        incremental_output: true,   // 修复：阿里云流式API需要设置为true
-      },
-    };
-
-    const response = await fetch(`${baseUrl}/services/aigc/text-generation/generation`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'Accept': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'User-Agent': 'uEVO-CLI/1.0',
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Aliyun DashScope API error: ${errorText}`);
-    }
-
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error('Failed to get response stream');
-    }
-
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let totalUsage: any = undefined;
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (line.trim() === '') continue;
-
-          if (line.startsWith('data:')) {
-            try {
-              const jsonStr = line.slice(5).trim();
-              console.log('[Aliyun Debug] 收到数据:', jsonStr);
-              
-              if (jsonStr === '[DONE]') {
-                console.log('[Aliyun Debug] 收到结束信号');
-                return;
-              }
-
-              const data = JSON.parse(jsonStr);
-              console.log('[Aliyun Debug] 解析后的数据:', JSON.stringify(data, null, 2));
-              
-              if (data.output?.choices && data.output.choices.length > 0) {
-                const choice = data.output.choices[0];
-                console.log('[Aliyun Debug] Choice内容:', choice.message?.content);
-                console.log('[Aliyun Debug] Finish reason:', choice.finish_reason);
-                
-                if (choice.message?.content) {
-                  const content = choice.message.content.trim();
-                  if (content.length > 0) {
-                    console.log('[Aliyun Debug] 输出内容:', content);
-                    yield {
-                      candidates: [{
-                        content: {
-                          parts: [{ text: content }],
-                          role: 'model'
-                        },
-                        index: 0,
-                        finishReason: choice.finish_reason === 'stop' ? FinishReason.STOP : undefined,
-                        safetyRatings: []
-                      }],
-                      promptFeedback: {
-                        safetyRatings: []
-                      },
-                      usageMetadata: data.usage ? {
-                        promptTokenCount: data.usage.input_tokens,
-                        candidatesTokenCount: data.usage.output_tokens,
-                        totalTokenCount: data.usage.total_tokens,
-                      } : totalUsage,
-                      modelVersion: model,
-                      text: undefined,
-                      data: undefined,
-                      functionCalls: undefined,
-                      executableCode: undefined,
-                      codeExecutionResult: undefined,
-                    };
-                  }
-                }
-                
-                // 修复：只有在真正完成时才返回
-                if (choice.finish_reason === 'stop') {
-                  console.log('[Aliyun Debug] 流正常结束');
-                  return;
-                }
-              }
-
-              if (data.usage) {
-                totalUsage = {
-                  promptTokenCount: data.usage.input_tokens,
-                  candidatesTokenCount: data.usage.output_tokens,
-                  totalTokenCount: data.usage.total_tokens,
-                };
-              }
-            } catch (e) {
-              console.warn('Failed to parse Aliyun stream chunk:', line);
-            }
-          }
-        }
-      }
-    } finally {
-      reader.releaseLock();
-    }
-  }
 }

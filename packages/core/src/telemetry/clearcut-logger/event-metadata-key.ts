@@ -30,9 +30,6 @@ export enum EventMetadataKey {
   // Logs whether an API key was used in the session.
   UEVO_CLI_START_SESSION_API_KEY_ENABLED = 6,
 
-  // Logs whether the Vertex API was used in the session.
-  UEVO_CLI_START_SESSION_VERTEX_API_ENABLED = 7,
-
   // Logs whether debug mode was enabled in the session.
   UEVO_CLI_START_SESSION_DEBUG_MODE_ENABLED = 8,
 

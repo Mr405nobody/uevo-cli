@@ -13,7 +13,6 @@ import {
   Content,
   Tool,
   GenerateContentResponse,
-  FinishReason,
 } from '@google/genai';
 import { getFolderStructure } from '../utils/getFolderStructure.js';
 import {
@@ -46,54 +45,10 @@ import { LoopDetectionService } from '../services/loopDetectionService.js';
 import { ideContext } from '../services/ideContext.js';
 import { logFlashDecidedToContinue } from '../telemetry/loggers.js';
 import { FlashDecidedToContinueEvent } from '../telemetry/types.js';
-import { getProviderForModel, AIProvider } from './modelProviderMapping.js';
-import { AnthropicClient } from './anthropicClient.js';
 
 function isThinkingSupported(model: string) {
   if (model.startsWith('gemini-2.5')) return true;
   return false;
-}
-
-// 阿里云 API 相关接口定义
-interface AliyunMessage {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
-}
-
-interface AliyunResponse {
-  output: {
-    text?: string;
-    choices?: Array<{
-      finish_reason: string;
-      message: {
-        role: string;
-        content: string;
-      };
-    }>;
-  };
-  usage: {
-    input_tokens: number;
-    output_tokens: number;
-    total_tokens: number;
-  };
-  request_id: string;
-}
-
-interface AliyunStreamChunk {
-  output?: {
-    choices?: Array<{
-      finish_reason?: string;
-      message?: {
-        role: string;
-        content: string;
-      };
-    }>;
-  };
-  usage?: {
-    input_tokens: number;
-    output_tokens: number;
-    total_tokens: number;
-  };
 }
 
 /**
@@ -152,7 +107,6 @@ export class GeminiClient {
 
   private readonly loopDetector: LoopDetectionService;
   private lastPromptId?: string;
-  private anthropicClient?: AnthropicClient;
 
   constructor(private config: Config) {
     if (config.getProxy()) {
@@ -170,12 +124,6 @@ export class GeminiClient {
       this.config.getSessionId(),
     );
     this.chat = await this.startChat();
-    
-    // 初始化AnthropicClient（如果配置了API密钥）
-    if (this.config.getAnthropicApiKey()) {
-      this.anthropicClient = new AnthropicClient(this.config);
-      await this.anthropicClient.initialize();
-    }
   }
 
   getContentGenerator(): ContentGenerator {
@@ -202,111 +150,6 @@ export class GeminiClient {
 
   isInitialized(): boolean {
     return this.chat !== undefined && this.contentGenerator !== undefined;
-  }
-
-  /**
-   * 获取AnthropicClient实例
-   */
-  getAnthropicClient(): AnthropicClient | undefined {
-    return this.anthropicClient;
-  }
-
-  /**
-   * 检查是否支持Claude模型
-   */
-  supportsClaudeModels(): boolean {
-    return this.anthropicClient !== undefined;
-  }
-
-  /**
-   * 处理Claude模型请求
-   */
-  private async *handleClaudeRequest(
-    request: PartListUnion,
-    signal: AbortSignal,
-    prompt_id: string,
-    model: string,
-    todoPrompt?: string,
-  ): AsyncGenerator<ServerGeminiStreamEvent, void> {
-    if (!this.anthropicClient) {
-      yield {
-        type: GeminiEventType.Error,
-        value: {
-          error: {
-            message: 'AnthropicClient not initialized',
-          },
-        },
-      };
-      return;
-    }
-
-    try {
-      // 将Gemini格式的请求转换为文本
-      const userMessage = this.convertGeminiRequestToText(request);
-      
-      // 使用AnthropicClient流式发送消息
-      const userMemory = this.config.getUserMemory();
-      const systemPrompt = getCoreSystemPrompt(userMemory, todoPrompt);
-      const stream = this.anthropicClient.streamMessage(userMessage, model, {
-        maxTokens: 4096,
-        temperature: this.generateContentConfig.temperature || 0.1,
-        prompt_id: prompt_id,
-        systemPrompt: systemPrompt,
-      });
-
-      for await (const event of stream) {
-        if (signal.aborted) {
-          break;
-        }
-        yield event;
-      }
-    } catch (error) {
-      const errorMessage = getErrorMessage(error);
-      yield {
-        type: GeminiEventType.Error,
-        value: {
-          error: {
-            message: `Claude API调用失败: ${errorMessage}`,
-          },
-        },
-      };
-    }
-  }
-
-  /**
-   * 将Gemini格式的请求转换为文本
-   */
-  private convertGeminiRequestToText(request: PartListUnion): string {
-    if (typeof request === 'string') {
-      return request;
-    }
-
-    if (Array.isArray(request)) {
-      return request
-        .map((part) => {
-          if (typeof part === 'string') {
-            return part;
-          }
-          if (part.text) {
-            return part.text;
-          }
-          if (part.inlineData) {
-            return '[Image or file content]';
-          }
-          return JSON.stringify(part);
-        })
-        .join('\n');
-    }
-
-    if (request.text) {
-      return request.text;
-    }
-
-    if (request.inlineData) {
-      return '[Image or file content]';
-    }
-
-    return JSON.stringify(request);
   }
 
   getHistory(): Content[] {
@@ -450,26 +293,6 @@ export class GeminiClient {
     originalModel?: string,
     todoPrompt?: string,
   ): AsyncGenerator<ServerGeminiStreamEvent, Turn> {
-    // 检查是否使用Claude模型
-    const currentModel = this.config.getModel();
-    if (AnthropicClient.isClaudeModel(currentModel)) {
-      if (!this.anthropicClient) {
-        yield {
-          type: GeminiEventType.Error,
-          value: {
-            error: {
-              message: 'Claude模型已选择，但Anthropic API密钥未配置。请设置ANTHROPIC_API_KEY环境变量。',
-            },
-          },
-        };
-        return new Turn(this.getChat(), prompt_id);
-      }
-      
-      // 使用AnthropicClient处理Claude模型请求
-      yield* this.handleClaudeRequest(request, signal, prompt_id, currentModel, todoPrompt);
-      return new Turn(this.getChat(), prompt_id);
-    }
-
     if (this.lastPromptId !== prompt_id) {
       this.loopDetector.reset(prompt_id);
       this.lastPromptId = prompt_id;
@@ -690,29 +513,6 @@ export class GeminiClient {
     };
 
     try {
-      // 检查是否需要使用阿里云 API
-      if (this.shouldUseAliyunAPI(modelToUse)) {
-        const userMemory = this.config.getUserMemory();
-        const systemInstruction = getCoreSystemPrompt(userMemory, undefined);
-        
-        // 添加系统指令到内容中
-        const contentsWithSystem = systemInstruction 
-          ? [{ role: 'user' as const, parts: [{ text: systemInstruction }] }, ...contents]
-          : contents;
-        
-        const messages = this.convertToAliyunMessages(contentsWithSystem);
-        
-        const apiCall = () => this.callAliyunAPI(modelToUse, messages, configToUse, abortSignal);
-        
-        const result = await retryWithBackoff(apiCall, {
-          onPersistent429: async (authType?: string, error?: unknown) =>
-            await this.handleFlashFallback(authType, error),
-          authType: this.config.getContentGeneratorConfig()?.authType,
-        });
-        return result;
-      }
-
-      // 使用原有的 Gemini API 逻辑
       const userMemory = this.config.getUserMemory();
       const systemInstruction = getCoreSystemPrompt(userMemory, undefined);
 
@@ -925,249 +725,4 @@ export class GeminiClient {
     return null;
   }
 
-  /**
-   * 检查模型是否需要使用阿里云 API
-   */
-  private shouldUseAliyunAPI(model: string): boolean {
-    const provider = getProviderForModel(model);
-    return provider === AIProvider.ALIYUN;
-  }
-
-  /**
-   * 获取阿里云 API 密钥
-   */
-  private getAliyunApiKey(): string {
-    const apiKey = process.env.DASHSCOPE_API_KEY;
-    if (!apiKey) {
-      throw new Error('DASHSCOPE_API_KEY environment variable is required for Aliyun models');
-    }
-    return apiKey;
-  }
-
-  /**
-   * 转换 Gemini Content 格式到阿里云消息格式
-   */
-  private convertToAliyunMessages(contents: Content[]): AliyunMessage[] {
-    const messages: AliyunMessage[] = [];
-    
-    for (const content of contents) {
-      if (content.role === 'user' || content.role === 'model') {
-        const role = content.role === 'model' ? 'assistant' : content.role;
-        const textParts = content.parts?.filter(part => 'text' in part && part.text) || [];
-        const text = textParts.map(part => (part as any).text).join(' ');
-        
-        if (text.trim()) {
-          messages.push({
-            role: role as 'user' | 'assistant',
-            content: text.trim(),
-          });
-        }
-      }
-    }
-    
-    return messages;
-  }
-
-  /**
-   * 调用阿里云 DashScope API
-   */
-  private async callAliyunAPI(
-    model: string,
-    messages: AliyunMessage[],
-    config: GenerateContentConfig,
-    abortSignal: AbortSignal
-  ): Promise<GenerateContentResponse> {
-    const apiKey = this.getAliyunApiKey();
-    const baseUrl = 'https://dashscope.aliyuncs.com/api/v1';
-    
-    const requestBody = {
-      model,
-      input: {
-        messages,
-      },
-      parameters: {
-        result_format: 'message',
-        temperature: config.temperature || 1.0,
-        max_tokens: config.maxOutputTokens,
-      },
-    };
-
-    const response = await fetch(`${baseUrl}/services/aigc/text-generation/generation`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'User-Agent': 'uEVO-CLI/1.0',
-      },
-      body: JSON.stringify(requestBody),
-      signal: abortSignal,
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Aliyun DashScope API error: ${errorText}`);
-    }
-
-    const data = await response.json() as AliyunResponse;
-
-    let content = '';
-    if (data.output.choices && data.output.choices.length > 0) {
-      content = data.output.choices[0].message.content;
-    } else if (data.output.text) {
-      content = data.output.text;
-    }
-
-    // 转换为 Gemini 格式的响应
-    return {
-      candidates: [{
-        content: {
-          parts: [{ text: content }],
-          role: 'model'
-        },
-        index: 0,
-        finishReason: FinishReason.STOP,
-        safetyRatings: []
-      }],
-      promptFeedback: {
-        safetyRatings: []
-      },
-      usageMetadata: {
-        promptTokenCount: data.usage.input_tokens,
-        candidatesTokenCount: data.usage.output_tokens,
-        totalTokenCount: data.usage.total_tokens,
-      },
-      modelVersion: model,
-      text: undefined,
-      data: undefined,
-      functionCalls: undefined,
-      executableCode: undefined,
-      codeExecutionResult: undefined,
-    };
-  }
-
-  /**
-   * 调用阿里云流式 API
-   */
-  private async *callAliyunStreamAPI(
-    model: string,
-    messages: AliyunMessage[],
-    config: GenerateContentConfig,
-    abortSignal: AbortSignal
-  ): AsyncGenerator<GenerateContentResponse> {
-    const apiKey = this.getAliyunApiKey();
-    const baseUrl = 'https://dashscope.aliyuncs.com/api/v1';
-    
-    const requestBody = {
-      model,
-      input: {
-        messages,
-      },
-      parameters: {
-        result_format: 'message',
-        temperature: config.temperature || 1.0,
-        max_tokens: config.maxOutputTokens,
-        incremental_output: true,
-      },
-    };
-
-    const response = await fetch(`${baseUrl}/services/aigc/text-generation/generation`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'Accept': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'User-Agent': 'uEVO-CLI/1.0',
-      },
-      body: JSON.stringify(requestBody),
-      signal: abortSignal,
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Aliyun DashScope API error: ${errorText}`);
-    }
-
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error('Failed to get response stream');
-    }
-
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let totalUsage: any = undefined;
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (line.trim() === '') continue;
-
-          if (line.startsWith('data:')) {
-            try {
-              const jsonStr = line.slice(5).trim();
-              if (jsonStr === '[DONE]') {
-                return;
-              }
-
-              const data = JSON.parse(jsonStr) as AliyunStreamChunk;
-              
-              if (data.output?.choices && data.output.choices.length > 0) {
-                const choice = data.output.choices[0];
-                if (choice.message?.content) {
-                  yield {
-                    candidates: [{
-                      content: {
-                        parts: [{ text: choice.message.content }],
-                        role: 'model'
-                      },
-                      index: 0,
-                      finishReason: choice.finish_reason === 'stop' ? FinishReason.STOP : undefined,
-                      safetyRatings: []
-                    }],
-                    promptFeedback: {
-                      safetyRatings: []
-                    },
-                    usageMetadata: data.usage ? {
-                      promptTokenCount: data.usage.input_tokens,
-                      candidatesTokenCount: data.usage.output_tokens,
-                      totalTokenCount: data.usage.total_tokens,
-                    } : totalUsage,
-                    modelVersion: model,
-                    text: undefined,
-                    data: undefined,
-                    functionCalls: undefined,
-                    executableCode: undefined,
-                    codeExecutionResult: undefined,
-                  };
-                }
-                
-                if (choice.finish_reason) {
-                  return;
-                }
-              }
-
-              if (data.usage) {
-                totalUsage = {
-                  promptTokenCount: data.usage.input_tokens,
-                  candidatesTokenCount: data.usage.output_tokens,
-                  totalTokenCount: data.usage.total_tokens,
-                };
-              }
-            } catch (e) {
-              console.warn('Failed to parse Aliyun stream chunk:', line);
-            }
-          }
-        }
-      }
-    } finally {
-      reader.releaseLock();
-    }
-  }
 }

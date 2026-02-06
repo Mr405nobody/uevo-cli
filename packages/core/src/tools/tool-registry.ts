@@ -392,7 +392,7 @@ function _sanitizeParameters(schema: Schema | undefined, visited: Set<Schema>) {
   visited.add(schema);
 
   if (schema.anyOf) {
-    // Vertex AI gets confused if both anyOf and default are set.
+    // Some backends get confused if both anyOf and default are set.
     schema.default = undefined;
     for (const item of schema.anyOf) {
       if (typeof item !== 'boolean') {
@@ -423,7 +423,7 @@ function _sanitizeParameters(schema: Schema | undefined, visited: Set<Schema>) {
       .map((value: unknown) => String(value));
   }
 
-  // Vertex AI only supports 'enum' and 'date-time' for STRING format.
+  // Some backends only support 'enum' and 'date-time' for STRING format.
   if (schema.type === Type.STRING) {
     if (
       schema.format &&

@@ -26,6 +26,7 @@ import {
   UnauthorizedError,
   UserPromptEvent,
   DEFAULT_UEVO_FLASH_MODEL,
+  buildSkillContext,
 } from '@uevo/uevo-cli-core';
 import { type Part, type PartListUnion, FinishReason } from '@google/genai';
 import {
@@ -234,9 +235,12 @@ export const useGeminiStream = (
       }
 
       let localQueryToSendToGemini: PartListUnion | null = null;
+      let baseQueryText = '';
+      let handledSubmitPrompt = false;
 
       if (typeof query === 'string') {
         const trimmedQuery = query.trim();
+        baseQueryText = trimmedQuery;
         logUserPrompt(
           config,
           new UserPromptEvent(
@@ -268,11 +272,9 @@ export const useGeminiStream = (
             }
             case 'submit_prompt': {
               localQueryToSendToGemini = slashCommandResult.content;
-
-              return {
-                queryToSend: localQueryToSendToGemini,
-                shouldProceed: true,
-              };
+              baseQueryText = slashCommandResult.content;
+              handledSubmitPrompt = true;
+              break;
             }
             case 'handled': {
               return { queryToSend: null, shouldProceed: false };
@@ -286,31 +288,33 @@ export const useGeminiStream = (
           }
         }
 
-        if (shellModeActive && handleShellCommand(trimmedQuery, abortSignal)) {
-          return { queryToSend: null, shouldProceed: false };
-        }
-
-        // Handle @-commands (which might involve tool calls)
-        if (isAtCommand(trimmedQuery)) {
-          const atCommandResult = await handleAtCommand({
-            query: trimmedQuery,
-            config,
-            addItem,
-            onDebugMessage,
-            messageId: userMessageTimestamp,
-            signal: abortSignal,
-          });
-          if (!atCommandResult.shouldProceed) {
+        if (!handledSubmitPrompt) {
+          if (shellModeActive && handleShellCommand(trimmedQuery, abortSignal)) {
             return { queryToSend: null, shouldProceed: false };
           }
-          localQueryToSendToGemini = atCommandResult.processedQuery;
-        } else {
-          // Normal query for Gemini
-          addItem(
-            { type: MessageType.USER, text: trimmedQuery },
-            userMessageTimestamp,
-          );
-          localQueryToSendToGemini = trimmedQuery;
+
+          // Handle @-commands (which might involve tool calls)
+          if (isAtCommand(trimmedQuery)) {
+            const atCommandResult = await handleAtCommand({
+              query: trimmedQuery,
+              config,
+              addItem,
+              onDebugMessage,
+              messageId: userMessageTimestamp,
+              signal: abortSignal,
+            });
+            if (!atCommandResult.shouldProceed) {
+              return { queryToSend: null, shouldProceed: false };
+            }
+            localQueryToSendToGemini = atCommandResult.processedQuery;
+          } else {
+            // Normal query for Gemini
+            addItem(
+              { type: MessageType.USER, text: trimmedQuery },
+              userMessageTimestamp,
+            );
+            localQueryToSendToGemini = trimmedQuery;
+          }
         }
       } else {
         // It's a function response (PartListUnion that isn't a string)
@@ -323,6 +327,29 @@ export const useGeminiStream = (
         );
         return { queryToSend: null, shouldProceed: false };
       }
+
+      if (baseQueryText) {
+        const todoPrompt = getSystemPromptTodos();
+        const skillContext = buildSkillContext({
+          query: baseQueryText,
+          todoPrompt,
+        });
+        if (skillContext) {
+          const skillPart: Part = {
+            text: `${skillContext.trimEnd()}\n\n`,
+          };
+          if (typeof localQueryToSendToGemini === 'string') {
+            localQueryToSendToGemini = [
+              skillPart,
+              { text: localQueryToSendToGemini },
+            ];
+          } else if (Array.isArray(localQueryToSendToGemini)) {
+            localQueryToSendToGemini = [skillPart, ...localQueryToSendToGemini];
+          } else {
+            localQueryToSendToGemini = [skillPart, localQueryToSendToGemini];
+          }
+        }
+      }
       return { queryToSend: localQueryToSendToGemini, shouldProceed: true };
     },
     [
@@ -334,6 +361,7 @@ export const useGeminiStream = (
       logger,
       shellModeActive,
       scheduleToolCalls,
+      getSystemPromptTodos,
     ],
   );
 
@@ -655,13 +683,12 @@ export const useGeminiStream = (
       setInitError(null);
 
       try {
-        const todoPrompt = getSystemPromptTodos();
         const stream = geminiClient.sendMessageStream(
           queryToSend,
           abortSignal,
           prompt_id!,
           undefined, // turns
-          todoPrompt,
+          undefined,
         );
         const processingStatus = await processGeminiStreamEvents(
           stream,

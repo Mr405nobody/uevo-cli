@@ -66,7 +66,6 @@ export function logCliConfiguration(
     core_tools_enabled: event.core_tools_enabled,
     approval_mode: event.approval_mode,
     api_key_enabled: event.api_key_enabled,
-    vertex_ai_enabled: event.vertex_ai_enabled,
     log_user_prompts_enabled: event.telemetry_log_user_prompts_enabled,
     file_filtering_respect_git_ignore: event.file_filtering_respect_git_ignore,
     debug_mode: event.debug_enabled,

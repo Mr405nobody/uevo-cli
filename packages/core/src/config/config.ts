@@ -18,7 +18,6 @@ import { GrepTool } from '../tools/grep.js';
 import { GlobTool } from '../tools/glob.js';
 import { EditTool } from '../tools/edit.js';
 import { ShellTool } from '../tools/shell.js';
-import { ClaudeShellTool } from '../tools/claudeShell.js';
 import { WriteFileTool } from '../tools/write-file.js';
 import { WebFetchTool } from '../tools/web-fetch.js';
 import { ReadManyFilesTool } from '../tools/read-many-files.js';
@@ -187,7 +186,6 @@ export interface ConfigParameters {
   noBrowser?: boolean;
   summarizeToolOutput?: Record<string, SummarizeToolOutputSettings>;
   ideMode?: boolean;
-  anthropicApiKey?: string;
   trustedDirs?: TrustedDirsConfig;
 }
 
@@ -244,7 +242,6 @@ export class Config {
     | Record<string, SummarizeToolOutputSettings>
     | undefined;
   private readonly experimentalAcp: boolean = false;
-  private anthropicApiKey: string | undefined;
   private readonly trustedDirs: TrustedDirsConfig | undefined;
 
   constructor(params: ConfigParameters) {
@@ -297,7 +294,6 @@ export class Config {
     this.noBrowser = params.noBrowser ?? false;
     this.summarizeToolOutput = params.summarizeToolOutput;
     this.ideMode = params.ideMode ?? false;
-    this.anthropicApiKey = params.anthropicApiKey;
     this.trustedDirs = params.trustedDirs;
 
     if (params.contextFileName) {
@@ -339,13 +335,6 @@ export class Config {
       this,
       authMethod,
     );
-
-    if (authMethod === AuthType.USE_ANTHROPIC) {
-      const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
-      if (anthropicApiKey) {
-        this.setAnthropicApiKey(anthropicApiKey);
-      }
-    }
 
     this.geminiClient = new GeminiClient(this);
     await this.geminiClient.initialize(this.contentGeneratorConfig);
@@ -659,17 +648,8 @@ export class Config {
     registerCoreTool(WebFetchTool, this);
     registerCoreTool(ReadManyFilesTool, this);
     
-    // 根据模型类型选择不同的shell工具
-    const currentModel = this.getModel();
-    const isClaudeModel = currentModel && currentModel.toLowerCase().includes('claude');
-    
-    if (isClaudeModel) {
-      console.log(`[Config] 检测到Claude模型 (${currentModel})，使用Claude专用Shell工具`);
-      registerCoreTool(ClaudeShellTool, this);
-    } else {
-      console.log(`[Config] 检测到非Claude模型 (${currentModel})，使用标准Shell工具`);
-      registerCoreTool(ShellTool, this);
-    }
+    // 注册标准 Shell 工具
+    registerCoreTool(ShellTool, this);
     
     registerCoreTool(MemoryTool);
     registerCoreTool(WebSearchTool, this);
@@ -725,17 +705,6 @@ export class Config {
         providerName: 'Google Gemini',
       };
     }
-  }
-
-  /**
-   * 获取Anthropic API密钥
-   */
-  getAnthropicApiKey(): string | undefined {
-    return this.anthropicApiKey || process.env.ANTHROPIC_API_KEY;
-  }
-
-  setAnthropicApiKey(apiKey: string): void {
-    this.anthropicApiKey = apiKey;
   }
 
   /**

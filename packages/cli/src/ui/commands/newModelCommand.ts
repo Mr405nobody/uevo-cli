@@ -10,7 +10,6 @@ import {
   CommandContext,
   CommandKind,
 } from './types.js';
-import { getProviderForModel, AIProvider } from '@uevo/uevo-cli-core';
 
 const COLOR_GREEN = '\u001b[32m';
 const COLOR_YELLOW = '\u001b[33m';
@@ -25,7 +24,7 @@ const RESET_COLOR = '\u001b[0m';
 const MODEL_GROUPS = {
   gemini: {
     name: 'Gemini',
-          envVar: 'GEMINI_API_KEY',
+    envVar: 'GEMINI_API_KEY',
     models: [
       'gemini-1.5-pro',
       'gemini-1.5-flash',
@@ -33,102 +32,6 @@ const MODEL_GROUPS = {
       'gemini-pro-vision',
       'gemini-2.0-flash-exp',
       'gemini-2.5-pro',
-    ],
-  },
-  deepseek: {
-    name: 'DeepSeek',
-    envVar: 'DEEPSEEK_API_KEY',
-    models: [
-      'deepseek-chat',
-      'deepseek-coder',
-      'deepseek-reasoner',
-      'deepseek-v3',
-      'deepseek-r1',
-    ],
-  },
-  anthropic: {
-    name: 'Anthropic',
-    envVar: 'ANTHROPIC_API_KEY',
-    models: [
-      // Claude 4 Models (Latest Generation)
-      'claude-opus-4-20250514',
-      'claude-opus-4-0',
-      'claude-sonnet-4-20250514',
-      'claude-sonnet-4-0',
-      
-      // Claude 3.7 Models
-      'claude-3-7-sonnet-20250219',
-      'claude-3-7-sonnet-latest',
-      
-      // Claude 3.5 Models
-      'claude-3-5-sonnet-20241022',
-      'claude-3-5-sonnet-20240620',
-      'claude-3-5-sonnet-latest',
-      'claude-3-5-haiku-20241022',
-      'claude-3-5-haiku-latest',
-      
-      // Claude 3 Models
-      'claude-3-opus-20240229',
-      'claude-3-opus-latest',
-      'claude-3-sonnet-20240229',
-      'claude-3-haiku-20240307',
-    ],
-  },
-  openai: {
-    name: 'OpenAI',
-    envVar: 'OPENAI_API_KEY',
-    models: [
-      'gpt-4o',
-      'gpt-4o-mini',
-      'gpt-4-turbo',
-      'gpt-4',
-      'gpt-3.5-turbo',
-      'o1-preview',
-      'o1-mini',
-    ],
-  },
-  openrouter: {
-    name: 'OpenRouter',
-    envVar: 'OPENROUTER_API_KEY',
-    models: [
-      'openai/gpt-4o',
-      'openai/gpt-4o-mini',
-      'anthropic/claude-3.5-sonnet',
-      'deepseek/deepseek-chat',
-      'google/gemini-pro',
-    ],
-  },
-  aliyun: {
-    name: 'Aliyun (Qwen)',
-    envVar: 'DASHSCOPE_API_KEY',
-    models: [
-      // 基础模型
-      'qwen-turbo',
-      'qwen-plus',
-      'qwen-max',
-      'qwen-long',
-      'qwen-max-longcontext',
-      // Qwen2.5 系列
-      'qwen2.5-72b-instruct',
-      'qwen2.5-32b-instruct',
-      'qwen2.5-14b-instruct',
-      'qwen2.5-7b-instruct',
-      'qwen2.5-3b-instruct',
-      'qwen2.5-1.5b-instruct',
-      'qwen2.5-0.5b-instruct',
-      // 专用模型
-      'qwen-coder-turbo',
-      'qwen-coder-plus',
-      'qwen2.5-coder-32b-instruct',
-      'qwen2.5-coder-14b-instruct',
-      'qwen2.5-coder-7b-instruct',
-      'qwen2.5-math-72b-instruct',
-      'qwen2.5-math-7b-instruct',
-      // 多模态模型
-      'qwen-vl-plus',
-      'qwen-vl-max',
-      'qwen-audio-turbo',
-      'qwen-audio-chat',
     ],
   },
 };
@@ -163,13 +66,13 @@ const showCurrentModel = async (context: CommandContext): Promise<SlashCommandAc
   let message = `${COLOR_CYAN}Current Model Configuration${RESET_COLOR}\n\n`;
   
   if (currentModel) {
-    const provider = getProviderForModel(currentModel);
-    const providerGroup = Object.entries(MODEL_GROUPS).find(([key, group]) => 
-      group.models.includes(currentModel)
+    const providerGroup = Object.entries(MODEL_GROUPS).find(([_, group]) =>
+      group.models.includes(currentModel),
     );
-    
+    const providerName = providerGroup?.[1].name ?? 'Gemini';
+
     message += `${COLOR_CYAN}Active Model:${RESET_COLOR} ${COLOR_GREEN}${currentModel}${RESET_COLOR}\n`;
-    message += `${COLOR_CYAN}Provider:${RESET_COLOR} ${COLOR_GREEN}${provider}${RESET_COLOR}\n`;
+    message += `${COLOR_CYAN}Provider:${RESET_COLOR} ${COLOR_GREEN}${providerName}${RESET_COLOR}\n`;
     message += `${COLOR_CYAN}Auth Type:${RESET_COLOR} ${COLOR_GREEN}${contentGeneratorConfig?.authType || 'Not set'}${RESET_COLOR}\n`;
     
     if (providerGroup) {

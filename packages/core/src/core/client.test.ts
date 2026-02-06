@@ -175,7 +175,6 @@ describe('uEVO CLIent (client.ts)', () => {
     const contentGeneratorConfig = {
       model: 'test-model',
       apiKey: 'test-key',
-      vertexai: false,
       authType: AuthType.USE_GEMINI,
     };
     const mockConfigObject = {
@@ -186,7 +185,6 @@ describe('uEVO CLIent (client.ts)', () => {
       getModel: vi.fn().mockReturnValue('test-model'),
       getEmbeddingModel: vi.fn().mockReturnValue('test-embedding-model'),
       getApiKey: vi.fn().mockReturnValue('test-key'),
-      getVertexAI: vi.fn().mockReturnValue(false),
       getUserAgent: vi.fn().mockReturnValue('test-agent'),
       getUserMemory: vi.fn().mockReturnValue(''),
       getFullContext: vi.fn().mockReturnValue(false),

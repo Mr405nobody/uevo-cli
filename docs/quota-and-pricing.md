@@ -49,22 +49,6 @@ For users of Standard or Enterprise editions of Gemini Code Assist, quotas and p
   - Specific quota for different models is not specified; model fallback may occur to preserve shared experience quality.
   - Members of the Google Developer Program may have Gemini Code Assist licenses through their membership.
 
-## 5. Vertex AI (Express Mode)
-
-If you are using Vertex AI in Express Mode:
-
-- **Quota:** Quotas are variable and specific to your account. See the source for more details.
-- **Cost:** After your Express Mode usage is consumed and you enable billing for your project, cost is based on standard [Vertex AI Pricing](https://cloud.google.com/vertex-ai/pricing).
-- **Details:** [Vertex AI Express Mode Quotas](https://cloud.google.com/vertex-ai/generative-ai/docs/start/express-mode/overview#quotas)
-
-## 6. Vertex AI (Regular Mode)
-
-If you are using the standard Vertex AI service:
-
-- **Quota:** Governed by a dynamic shared quota system or pre-purchased provisioned throughput.
-- **Cost:** Based on model and token usage. See [Vertex AI Pricing](https://cloud.google.com/vertex-ai/pricing).
-- **Details:** [Vertex AI Dynamic Shared Quota](https://cloud.google.com/vertex-ai/generative-ai/docs/resources/dynamic-shared-quota)
-
-## 7. Google One and Ultra plans, Gemini for Workspace plans
+## 5. Google One and Ultra plans, Gemini for Workspace plans
 
 These plans currently apply only to the use of Gemini web-based products provided by Google-based experiences (for example, the Gemini web app or the Flow video editor). These plans do not apply to the API usage which powers the Gemini CLI. Supporting these plans is under active consideration for future support.

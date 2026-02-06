@@ -7,7 +7,6 @@
 import { Box, Newline, Text, useInput } from 'ink';
 import { RadioButtonSelect } from '../components/shared/RadioButtonSelect.js';
 import { usePrivacySettings } from '../hooks/usePrivacySettings.js';
-import { CloudPaidPrivacyNotice } from './CloudPaidPrivacyNotice.js';
 import { Config } from '@uevo/uevo-cli-core';
 import { Colors } from '../colors.js';
 
@@ -45,7 +44,20 @@ export const CloudFreePrivacyNotice = ({
   }
 
   if (privacyState.isFreeTier === false) {
-    return <CloudPaidPrivacyNotice onExit={onExit} />;
+    return (
+      <Box flexDirection="column" marginY={1}>
+        <Text bold color={Colors.AccentPurple}>
+          Gemini Code Assist Privacy Notice
+        </Text>
+        <Newline />
+        <Text>
+          Your account is managed (Workspace/Standard/Enterprise). Your data is
+          governed by your organization’s Gemini Code Assist privacy terms.
+        </Text>
+        <Newline />
+        <Text color={Colors.Gray}>Press Esc to exit.</Text>
+      </Box>
+    );
   }
 
   const items = [

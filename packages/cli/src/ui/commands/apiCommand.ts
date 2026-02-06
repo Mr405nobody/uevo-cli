@@ -24,39 +24,9 @@ const RESET_COLOR = '\u001b[0m';
 const API_PROVIDERS = {
   gemini: {
     name: 'Gemini',
-          envVar: 'GEMINI_API_KEY',
+    envVar: 'GEMINI_API_KEY',
     description: 'Google Gemini API',
     setupUrl: 'https://ai.google.dev/api',
-  },
-  deepseek: {
-    name: 'DeepSeek',
-    envVar: 'DEEPSEEK_API_KEY',
-    description: 'DeepSeek API',
-    setupUrl: 'https://platform.deepseek.com/',
-  },
-  anthropic: {
-    name: 'Anthropic',
-    envVar: 'ANTHROPIC_API_KEY',
-    description: 'Anthropic Claude API',
-    setupUrl: 'https://console.anthropic.com/',
-  },
-  openai: {
-    name: 'OpenAI',
-    envVar: 'OPENAI_API_KEY',
-    description: 'OpenAI GPT API',
-    setupUrl: 'https://platform.openai.com/',
-  },
-  openrouter: {
-    name: 'OpenRouter',
-    envVar: 'OPENROUTER_API_KEY',
-    description: 'OpenRouter API',
-    setupUrl: 'https://openrouter.ai/',
-  },
-  aliyun: {
-    name: 'Aliyun',
-    envVar: 'DASHSCOPE_API_KEY',
-    description: 'Aliyun DashScope API (Qwen models)',
-    setupUrl: 'https://dashscope.console.aliyun.com/',
   },
 } as const;
 

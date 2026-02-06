@@ -8,7 +8,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
 import process from 'node:process';
-import { GEMINI_CONFIG_DIR } from '../tools/memoryTool.js';
+import { fileURLToPath } from 'node:url';
 
 /**
  * 获取工具工作空间路径
@@ -85,46 +85,77 @@ function formatUserRulesForPrompt(rulesData: { systemRule: string | null; userRu
   return rulesSection;
 }
 
-// === 动态模板路由实现 ===
+// === 模块化提示词路由 ===
 const templateRouteMap = {
-  core: 'core-mandates.md',
-  workflows: 'primary-workflows.md',
-  guidelines: 'operational-guidelines.md',
+  core_mandates: 'core-mandates.md',
+  ops_tone: 'ops-tone.md',
+  ops_security: 'ops-security.md',
+  ops_tools: 'ops-tools.md',
+  ops_interaction: 'ops-interaction.md',
+  wf_se: 'workflow-se.md',
+  wf_new_app: 'workflow-new-app.md',
+  wf_tool_dev: 'workflow-tool-dev.md',
 } as const;
 export type TemplateSection = keyof typeof templateRouteMap;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const templatesDir = path.join(__dirname, 'templates');
 function getPromptSection(section: TemplateSection): string {
   const filename = templateRouteMap[section];
   const filePath = path.join(templatesDir, filename);
   return fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf-8') : '';
 }
-function getDynamicSystemPrompt(sections: TemplateSection[]): string {
-  return sections.map(getPromptSection).filter(Boolean).join('\n\n');
+
+export type OpsSection = 'tone' | 'security' | 'tools' | 'interaction';
+export type WorkflowSkill = 'software_engineering' | 'new_app' | 'tool_dev';
+
+const opsSectionMap: Record<OpsSection, TemplateSection> = {
+  tone: 'ops_tone',
+  security: 'ops_security',
+  tools: 'ops_tools',
+  interaction: 'ops_interaction',
+};
+
+const workflowSectionMap: Record<WorkflowSkill, TemplateSection> = {
+  software_engineering: 'wf_se',
+  new_app: 'wf_new_app',
+  tool_dev: 'wf_tool_dev',
+};
+
+export function getCoreMandatesPrompt(): string {
+  return getPromptSection('core_mandates');
 }
-const defaultSections: TemplateSection[] = ['core', 'workflows', 'guidelines'];
+
+export function getOperationalGuidelinesPrompt(
+  sections: OpsSection[],
+  includeHeader: boolean = true,
+): string {
+  const body = sections
+    .map((section) => getPromptSection(opsSectionMap[section]))
+    .filter(Boolean)
+    .join('\n\n');
+  if (!body) return '';
+  return includeHeader ? `# Operational Guidelines\n\n${body}` : body;
+}
+
+export function getPrimaryWorkflowsPrompt(
+  skills: WorkflowSkill[],
+  includeHeader: boolean = true,
+): string {
+  const body = skills
+    .map((skill) => getPromptSection(workflowSectionMap[skill]))
+    .filter(Boolean)
+    .join('\n\n');
+  if (!body) return '';
+  return includeHeader ? `# Primary Workflows\n\n${body}` : body;
+}
 
 export function getCoreSystemPrompt(userMemory?: string, todoPrompt?: string): string {
-  let systemMdEnabled = false;
-  let systemMdPath = path.resolve(path.join(GEMINI_CONFIG_DIR, 'system.md'));
-  const systemMdVar = process.env.UEVO_SYSTEM_MD;
-  if (systemMdVar) {
-    const systemMdVarLower = systemMdVar.toLowerCase();
-    if (!['0', 'false'].includes(systemMdVarLower)) {
-      systemMdEnabled = true;
-      if (!['1', 'true'].includes(systemMdVarLower)) {
-        let customPath = systemMdVar;
-        if (customPath.startsWith('~/')) customPath = path.join(os.homedir(), customPath.slice(2));
-        else if (customPath === '~') customPath = os.homedir();
-        systemMdPath = path.resolve(customPath);
-      }
-      if (!fs.existsSync(systemMdPath)) {
-        throw new Error(`missing system prompt file '${systemMdPath}'`);
-      }
-    }
-  }
-  const basePrompt = systemMdEnabled
-    ? fs.readFileSync(systemMdPath, 'utf8')
-    : getDynamicSystemPrompt(defaultSections);
+  const basePromptParts = [
+    getCoreMandatesPrompt(),
+    getOperationalGuidelinesPrompt(['tone', 'security', 'tools']),
+  ];
+  const basePrompt = basePromptParts.filter(Boolean).join('\n\n');
 
   const memorySuffix = userMemory && userMemory.trim().length > 0 ? `\n\n---\n\n${userMemory.trim()}` : '';
   const todoSuffix = todoPrompt && todoPrompt.trim().length > 0 ? `\n\n---\n\n${todoPrompt.trim()}` : '';

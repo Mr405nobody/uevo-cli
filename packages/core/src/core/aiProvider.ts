@@ -10,9 +10,4 @@
  */
 export enum AIProvider {
   GEMINI = 'gemini',
-  ANTHROPIC = 'anthropic',
-  OPENAI = 'openai',
-  DEEPSEEK = 'deepseek',
-  ALIYUN = 'aliyun',
-  OPENROUTER = 'openrouter',
 }
